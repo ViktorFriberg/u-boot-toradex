@@ -44,8 +44,8 @@
 				"1m(u-boot-env),"		\
 				"1m(cfgblock)ro,"		\
 				"8m(kernel),"		\
-				"256m(config),"		\
-				"-(ubi)"
+				"200m(config),"		\
+				"100m(ubi)"
 
 #define BOARD_EXTRA_ENV_SETTINGS \
 	CONFIG_COMMON_EXTRA_ENV_SETTINGS \
