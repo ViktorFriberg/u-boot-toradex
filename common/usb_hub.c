@@ -397,7 +397,7 @@ static int usb_hub_configure(struct usb_device *dev)
 	      (le16_to_cpu(hubsts->wHubStatus) & HUB_STATUS_OVERCURRENT) ? \
 	      "" : "no ");
 	usb_hub_power_on(hub);
-    mdelay(200);
+    mdelay(50);
 	/*
 	 * Reset any devices that may be in a bad state when applying
 	 * the power.  This is a __weak function.  Resetting of the devices
