@@ -681,6 +681,7 @@ static int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
 	pipeout = usb_sndbulkpipe(us->pusb_dev, us->ep_out);
 	/* DATA phase + error handling */
 	data_actlen = 0;
+	mdelay(10); /*Like Linux does.*/
 	/* no data, go immediately to the STATUS phase */
 	if (srb->datalen == 0)
 		goto st;
@@ -691,6 +692,13 @@ static int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
 		pipe = pipeout;
 	result = usb_bulk_msg(us->pusb_dev, pipe, srb->pdata, srb->datalen,
 			      &data_actlen, USB_CNTL_TIMEOUT * 5);
+	/* special handling of XACTERR in DATA phase */
+    if ((result < 0) && (us->pusb_dev->status & USB_ST_XACTERR)) {
+        debug("XACTERR in data phase.  Clear, reset, and return fail.\n");
+        usb_stor_BBB_clear_endpt_stall(us, dir_in ? us->ep_in : us->ep_out);
+        usb_stor_BBB_reset(us);
+        return USB_STOR_TRANSPORT_FAILED;
+    }
 	/* special handling of STALL in DATA phase */
 	if ((result < 0) && (us->pusb_dev->status & USB_ST_STALLED)) {
 		debug("DATA:stall\n");
