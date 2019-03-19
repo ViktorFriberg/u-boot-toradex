@@ -1046,6 +1046,8 @@ static void usb_bin_fixup(struct usb_device_descriptor descriptor,
 }
 #endif /* CONFIG_USB_BIN_FIXUP */
 
+int usb_max_xfer_blk = USB_MAX_XFER_BLK;
+
 unsigned long usb_stor_read(int device, lbaint_t blknr,
 			    lbaint_t blkcnt, void *buffer)
 {
@@ -1059,6 +1061,7 @@ unsigned long usb_stor_read(int device, lbaint_t blknr,
 
 	if (blkcnt == 0)
 		return 0;
+    usb_max_xfer_blk = getenv_ulong("usb_max_blk", 10, USB_MAX_XFER_BLK);
 
 	device &= 0xff;
 	/* Setup  device */
@@ -1083,21 +1086,52 @@ unsigned long usb_stor_read(int device, lbaint_t blknr,
 	      " buffer %" PRIxPTR "\n", device, start, blks, buf_addr);
 
 	do {
-		/* XXX need some comment here */
+		/* Probably most errors are USB errors, not hard disk error.
+         * Many disks use a USB chip that is flaky when doing large transfers.  The workaround
+         * is to dynamically reduce the transfer size and allow an additional try.
+         * This should pick up flaky disks.  Linux uses a quirks table.  We'll use observation.
+         * Give it 1 try very large, 1 try large, 2 tries medium and 2 tries small(ish).
+         * On a solid fail (actual disk error)(which should be rare), this will give us 6 tries max,
+         * and only that many if the read is quite large.
+         * A fail on a very short read obviously doesn't have a too-large max_blks.  Timeout
+         * due to Spinup being a case in point.
+         */
 		retry = 2;
 		srb->pdata = (unsigned char *)buf_addr;
-		if (blks > USB_MAX_XFER_BLK)
-			smallblks = USB_MAX_XFER_BLK;
+		
+retry_it:
+       if (blks > usb_max_xfer_blk)
+           smallblks = usb_max_xfer_blk;
 		else
 			smallblks = (unsigned short) blks;
-retry_it:
-		if (smallblks == USB_MAX_XFER_BLK)
+
+		if (smallblks == usb_max_xfer_blk)
 			usb_show_progress();
 		srb->datalen = usb_dev_desc[device].blksz * smallblks;
 		srb->pdata = (unsigned char *)buf_addr;
 		if (usb_read_10(srb, ss, start, smallblks)) {
 			debug("Read ERROR\n");
 			usb_request_sense(srb, ss);
+     		if (smallblks > 2047) {  /* Dynamically reduce the I/O size. */
+               usb_max_xfer_blk = 2047;
+               debug("step down usb_max_xfer_blk to %d\n", usb_max_xfer_blk);
+               ++retry;
+            }
+            else if (smallblks > 512) {
+               usb_max_xfer_blk = 512;
+               debug("step down usb_max_xfer_blk to %d\n", usb_max_xfer_blk);
+               ++retry;
+            }
+            else if (smallblks > 511) {
+               usb_max_xfer_blk = 511;
+               debug("step down usb_max_xfer_blk to %d\n", usb_max_xfer_blk);
+               ++retry;
+            }
+            else if (smallblks > 63) {
+               usb_max_xfer_blk = 63;
+               debug("step down usb_max_xfer_blk to %d\n", usb_max_xfer_blk);
+               retry += 2;
+            }
 			if (retry--)
 				goto retry_it;
 			blkcnt -= blks;
@@ -1114,8 +1148,7 @@ retry_it:
 	      start, smallblks, buf_addr);
 
 	usb_disable_asynch(0); /* asynch transfer allowed */
-	if (blkcnt >= USB_MAX_XFER_BLK)
-		debug("\n");
+
 	return blkcnt;
 }
 
