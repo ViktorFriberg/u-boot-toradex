@@ -165,9 +165,6 @@ static int ehci_reset(int index)
 	int ret = 0;
 
 	cmd = ehci_readl(&ehcic[index].hcor->or_usbcmd);
-	/* if not run, directly return */
-	if(!(cmd & CMD_RUN))
-	    return 0;
 	cmd = (cmd & ~CMD_RUN) | CMD_RESET;
 	ehci_writel(&ehcic[index].hcor->or_usbcmd, cmd);
 	ret = handshake((uint32_t *)&ehcic[index].hcor->or_usbcmd,
@@ -199,6 +196,9 @@ static int ehci_shutdown(struct ehci_ctrl *ctrl)
 		return -EINVAL;
 
 	cmd = ehci_readl(&ctrl->hcor->or_usbcmd);
+	/* if not run, directly return */
+	if(!(cmd & CMD_RUN))
+	    return 0;
 	cmd &= ~(CMD_PSE | CMD_ASE);
 	ehci_writel(&ctrl->hcor->or_usbcmd, cmd);
 	ret = handshake(&ctrl->hcor->or_usbsts, STS_ASS | STS_PSS, 0,
