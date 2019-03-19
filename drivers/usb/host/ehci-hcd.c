@@ -627,7 +627,7 @@ ehci_submit_async(struct usb_device *dev, unsigned long pipe, void *buffer,
                 qh->qh_overlay.qt_token = cpu_to_hc32(token);
                 goto retry_xacterr;
             }
-            dev->status = 0x80/* XACTERR error */;
+            dev->status = USB_ST_XACTERR/* XACTERR error */;
             dev->act_len = length - QT_TOKEN_GET_TOTALBYTES(token);
             goto fail;
         }
